@@ -1,24 +1,18 @@
-from typing import Optional, Literal
+from typing import Optional
 from pydantic import BaseModel, Field
 
 class LeadExtracted(BaseModel):
-    """Esquema de salida garantizado para el LLM."""
+    """Esquema universal de extracción para cualquier sector y país."""
     nombre_empresa: str = Field(
-        description="Nombre comercial de la microfinanciera, cooperativa o persona particular que ofrece préstamos o créditos"
+        description="Nombre comercial de la empresa, contratista, negocio o persona que ofrece el servicio"
     )
-    tipo_entidad: Literal[
-        'Microfinanciera / Empresa', 
-        'Prestamista Particular', 
-        'Cooperativa', 
-        'Comercio / Negocio', 
-        'No especificado'
-    ] = Field(
-        default='No especificado',
-        description="Tipo de prestamista o institución identificada"
+    tipo_entidad: Optional[str] = Field(
+        default='Empresa / Negocio',
+        description="Tipo de entidad: Empresa, Contratista, Negocio local, Proveedor, Prestamista, etc."
     )
     telefono: Optional[str] = Field(
         default=None,
-        description="Número de teléfono de contacto o WhatsApp (debe contener los dígitos locales de Nicaragua)"
+        description="Número de teléfono de contacto, atención o celular con su código de área"
     )
     email: Optional[str] = Field(
         default=None,
@@ -26,14 +20,13 @@ class LeadExtracted(BaseModel):
     )
     persona_contacto: Optional[str] = Field(
         default=None,
-        description="Nombre de la persona, dueño, asesor o encargado"
+        description="Nombre del dueño, director, contratista o persona de contacto si aparece"
     )
     direccion: Optional[str] = Field(
         default=None,
-        description="Dirección física, barrio o referencia de ubicación en Chinandega o Nicaragua"
+        description="Dirección física, ciudad o estado"
     )
     detalles_oferta: Optional[str] = Field(
         default=None,
-        description="Breve resumen de las condiciones: requisitos, tipo de garantía, montos o plazos mencionados"
+        description="Breve descripción de los servicios que prestan o condiciones comerciales"
     )
-

@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS `leads` (
     `departamento` VARCHAR(100) DEFAULT 'Chinandega',
     `pais` VARCHAR(50) DEFAULT 'Nicaragua',
     `nombre_empresa` VARCHAR(255) NOT NULL,
-    `tipo_entidad` ENUM('Microfinanciera / Empresa', 'Prestamista Particular', 'Cooperativa', 'Comercio / Negocio', 'No especificado') DEFAULT 'No especificado',
+    `tipo_entidad` VARCHAR(100) DEFAULT 'Empresa',
     `telefono` VARCHAR(30) NOT NULL,
     `telefono_raw` VARCHAR(50) NULL,
     `email` VARCHAR(150) NULL,

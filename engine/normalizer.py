@@ -1,35 +1,88 @@
 import re
-from typing import Optional
+from typing import Optional, Tuple
+import phonenumbers
 
-def normalizar_telefono_nicaragua(tel_raw: Optional[str]) -> tuple[Optional[str], Optional[str]]:
+# Mapa de países comunes a códigos ISO de 2 letras
+MAPA_PAISES = {
+    'estados unidos': 'US',
+    'united states': 'US',
+    'usa': 'US',
+    'eeuu': 'US',
+    'us': 'US',
+    'nicaragua': 'NI',
+    'ni': 'NI',
+    'mexico': 'MX',
+    'méxico': 'MX',
+    'mx': 'MX',
+    'espana': 'ES',
+    'españa': 'ES',
+    'spain': 'ES',
+    'es': 'ES',
+    'colombia': 'CO',
+    'costa rica': 'CR',
+    'honduras': 'HN',
+    'guatemala': 'GT',
+    'el salvador': 'SV',
+    'panama': 'PA',
+    'panamá': 'PA',
+    'argentina': 'AR',
+    'chile': 'CL',
+    'peru': 'PE',
+    'perú': 'PE',
+    'canada': 'CA',
+    'canadá': 'CA',
+}
+
+def normalizar_telefono_internacional(tel_raw: Optional[str], pais: str = "Nicaragua") -> Tuple[Optional[str], Optional[str]]:
     """
-    Limpia y valida un número telefónico de Nicaragua.
+    Limpia y valida un número telefónico de cualquier país usando Google phonenumbers.
     Retorna una tupla: (telefono_normalizado_e164, telefono_crudo_limpio).
-    
-    Reglas de Nicaragua:
-    - 8 dígitos locales.
-    - Celulares empiezan con 8, 7 o 5 (Tigo / Claro).
-    - Fijos empiezan con 2 (Chinandega típicamente 2341, 2342...).
-    - Prefijo de país: +505.
     """
     if not tel_raw:
         return None, None
 
-    # Limpiar espacios, guiones, paréntesis y puntos
     tel_limpio = tel_raw.strip()
+    pais_normalizado = (pais or "Nicaragua").lower().strip()
+    codigo_region = MAPA_PAISES.get(pais_normalizado, 'US')
+
+    try:
+        # Intentar parsear con el código de región esperado
+        num_obj = phonenumbers.parse(tel_limpio, codigo_region)
+        if phonenumbers.is_possible_number(num_obj):
+            tel_e164 = phonenumbers.format_number(num_obj, phonenumbers.PhoneNumberFormat.E164)
+            return tel_e164, tel_limpio
+    except Exception:
+        pass
+
+    # Si empieza con '+', intentar parsearlo directamente
+    if tel_limpio.startswith('+'):
+        try:
+            num_obj = phonenumbers.parse(tel_limpio, None)
+            if phonenumbers.is_possible_number(num_obj):
+                return phonenumbers.format_number(num_obj, phonenumbers.PhoneNumberFormat.E164), tel_limpio
+        except Exception:
+            pass
+
+    # Extractor de emergencia para dígitos puros
     digitos = re.sub(r'[^\d]', '', tel_limpio)
+    # Estados Unidos (10 dígitos locales o 11 con prefijo 1)
+    if codigo_region == 'US':
+        if len(digitos) == 10:
+            return f"+1{digitos}", tel_limpio
+        if len(digitos) == 11 and digitos.startswith('1'):
+            return f"+{digitos}", tel_limpio
 
-    # Si empieza con 505 y tiene 11 dígitos
-    if digitos.startswith('505') and len(digitos) == 11:
-        digitos = digitos[3:]
-
-    # Si tiene 8 dígitos válidos
-    if len(digitos) == 8:
-        # Validación de primer dígito en Nicaragua (2 para fijos, 5/7/8 para móviles)
-        if digitos[0] in ('2', '5', '7', '8'):
+    # Nicaragua (8 dígitos)
+    if codigo_region == 'NI':
+        if len(digitos) == 8:
             return f"+505{digitos}", tel_limpio
+        if len(digitos) == 11 and digitos.startswith('505'):
+            return f"+{digitos}", tel_limpio
 
-    # Si no cumple el formato estricto de Nicaragua
+    # Genérico si tiene entre 8 y 15 dígitos
+    if 8 <= len(digitos) <= 15:
+        return f"+{digitos}", tel_limpio
+
     return None, tel_limpio
 
 def limpiar_texto(texto: Optional[str]) -> Optional[str]:
@@ -37,4 +90,3 @@ def limpiar_texto(texto: Optional[str]) -> Optional[str]:
     if not texto:
         return None
     return re.sub(r'\s+', ' ', texto).strip()
-

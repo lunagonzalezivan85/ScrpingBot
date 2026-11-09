@@ -37,10 +37,11 @@
             // Modal de detalle y edición
             const [leadSeleccionado, setLeadSeleccionado] = useState(null);
 
-            // Estado del formulario de prospección
+            // Estado del formulario de prospección universal
             const [formData, setFormData] = useState({
-                sector: "Microcréditos y préstamos",
-                ciudad: "Chinandega",
+                sector: "Construcción",
+                ciudad: "Miami",
+                pais: "Estados Unidos",
                 limite: 5,
                 fuente_tipo: "web_search",
                 api_key: ""
@@ -108,7 +109,7 @@
                     const json = await res.json();
                     if (json.status === "success") {
                         setActiveJob({ id: json.data.job_id, status: "pending", limite_solicitado: formData.limite });
-                        setJobLogs([{ nivel: "info", mensaje: "Trabajo encolado en segundo plano..." }]);
+                        setJobLogs([{ nivel: "info", mensaje: `Trabajo encolado para ${formData.sector} en ${formData.ciudad}, ${formData.pais}...` }]);
                     } else {
                         alert("Error: " + (json.messages ? Object.values(json.messages).join(", ") : "No se pudo iniciar"));
                         setIsScraping(false);
@@ -205,11 +206,11 @@
                     <div className="flex flex-col md:flex-row md:items-center justify-between pb-6 border-b border-slate-200 mb-8 gap-4">
                         <div className="flex items-center gap-3">
                             <span className="bg-indigo-600 text-white p-2.5 rounded-xl shadow-md flex items-center justify-center">
-                                <i className="bi bi-robot text-2xl"></i>
+                                <i className="bi bi-globe2 text-2xl"></i>
                             </span>
                             <div>
-                                <h1 className="text-2xl font-bold tracking-tight text-slate-900">Scraph</h1>
-                                <p className="text-sm text-slate-500">Motor de Prospección con IA (ScrapeGraphAI) & Dial CRM para Chinandega</p>
+                                <h1 className="text-2xl font-bold tracking-tight text-slate-900">Scraph Universal</h1>
+                                <p className="text-sm text-slate-500">Motor de Prospección con IA (ScrapeGraphAI) & Dial CRM Multi-País</p>
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -223,7 +224,7 @@
                             </a>
                             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-100 text-emerald-800">
                                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                Online (+505)
+                                Multi-País Activo
                             </span>
                         </div>
                     </div>
@@ -252,61 +253,71 @@
                         </div>
                     </div>
 
-                    {/* Formulario de Prospección */}
+                    {/* Formulario de Prospección Universal */}
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-8">
                         <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-2">
                                 <i className="bi bi-search text-indigo-600 font-bold"></i>
-                                <h2 className="text-lg font-semibold text-slate-800">Lanzar Nueva Prospección Automática</h2>
+                                <h2 className="text-lg font-semibold text-slate-800">Lanzar Prospección en Cualquier Sector y País</h2>
                             </div>
-                            <span className="text-xs text-slate-400">Motor: DuckDuckGo + ScrapeGraphAI + Playwright</span>
+                            <span className="text-xs text-slate-400">ScrapeGraphAI + DuckDuckGo Global + Google Libphonenumber</span>
                         </div>
                         <form onSubmit={iniciarProspeccion} className="grid grid-cols-1 md:grid-cols-5 gap-4">
                             <div>
-                                <label className="block text-xs font-medium text-slate-600 mb-1">Sector o Nicho</label>
+                                <label className="block text-xs font-medium text-slate-600 mb-1">Sector o Industria</label>
                                 <input
                                     type="text"
                                     value={formData.sector}
                                     onChange={(e) => setFormData({ ...formData, sector: e.target.value })}
                                     className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                                    placeholder="Ej. Microcréditos, Prestamistas"
+                                    placeholder="Ej. Construcción, Clínicas, Restaurantes"
                                     required
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-medium text-slate-600 mb-1">Ciudad / Departamento</label>
+                                <label className="block text-xs font-medium text-slate-600 mb-1">Ciudad o Estado</label>
                                 <input
                                     type="text"
                                     value={formData.ciudad}
                                     onChange={(e) => setFormData({ ...formData, ciudad: e.target.value })}
                                     className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                                    placeholder="Ej. Chinandega"
+                                    placeholder="Ej. Miami, Houston, Madrid, Managua"
                                     required
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-medium text-slate-600 mb-1">Fuente</label>
+                                <label className="block text-xs font-medium text-slate-600 mb-1">País</label>
                                 <select
-                                    value={formData.fuente_tipo}
-                                    onChange={(e) => setFormData({ ...formData, fuente_tipo: e.target.value })}
-                                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                                    value={formData.pais}
+                                    onChange={(e) => setFormData({ ...formData, pais: e.target.value })}
+                                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none font-medium"
                                 >
-                                    <option value="web_search">Búsqueda Abierta (Clasificados/Web)</option>
-                                    <option value="pdf_conami">Registro Oficial CONAMI (PDFs)</option>
-                                    <option value="directorio">Directorios Comerciales</option>
+                                    <option value="Estados Unidos">🇺🇸 Estados Unidos (+1)</option>
+                                    <option value="Nicaragua">🇳🇮 Nicaragua (+505)</option>
+                                    <option value="México">🇲🇽 México (+52)</option>
+                                    <option value="España">🇪🇸 España (+34)</option>
+                                    <option value="Colombia">🇨🇴 Colombia (+57)</option>
+                                    <option value="Costa Rica">🇨🇷 Costa Rica (+506)</option>
+                                    <option value="Honduras">🇭🇳 Honduras (+504)</option>
+                                    <option value="Guatemala">🇬🇹 Guatemala (+502)</option>
+                                    <option value="El Salvador">🇸🇻 El Salvador (+503)</option>
+                                    <option value="Panamá">🇵🇦 Panamá (+507)</option>
+                                    <option value="Argentina">🇦🇷 Argentina (+54)</option>
+                                    <option value="Chile">🇨🇱 Chile (+56)</option>
+                                    <option value="Perú">🇵🇪 Perú (+51)</option>
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-xs font-medium text-slate-600 mb-1">Límite</label>
+                                <label className="block text-xs font-medium text-slate-600 mb-1">Cantidad</label>
                                 <select
                                     value={formData.limite}
                                     onChange={(e) => setFormData({ ...formData, limite: parseInt(e.target.value) })}
                                     className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                                 >
-                                    <option value="3">3 prospectos (rápido)</option>
-                                    <option value="5">5 prospectos</option>
-                                    <option value="10">10 prospectos</option>
-                                    <option value="20">20 prospectos</option>
+                                    <option value="3">3 empresas (rápido)</option>
+                                    <option value="5">5 empresas</option>
+                                    <option value="10">10 empresas</option>
+                                    <option value="20">20 empresas</option>
                                 </select>
                             </div>
                             <div className="flex items-end">
@@ -413,7 +424,7 @@
                                     <tr>
                                         <th className="px-6 py-3">Empresa / Contacto</th>
                                         <th className="px-6 py-3">Acción Rápida (Llamar / WA)</th>
-                                        <th className="px-6 py-3">Ubicación / Oferta</th>
+                                        <th className="px-6 py-3">Ubicación / País</th>
                                         <th className="px-6 py-3">Estado de Llamada</th>
                                         <th className="px-6 py-3">Notas</th>
                                         <th className="px-4 py-3 text-right">Detalle / Acción</th>
@@ -438,7 +449,7 @@
                                     ) : (
                                         leads.map((lead) => {
                                             const telSoloDigitos = lead.telefono.replace(/[^\d]/g, '');
-                                            const mensajeWA = encodeURIComponent(`Hola, le escribo en referencia a las opciones de préstamos y financiamiento en Chinandega para ${lead.nombre_empresa}. ¿Con quién tengo el gusto?`);
+                                            const mensajeWA = encodeURIComponent(`Hola, le escribo en referencia a ${lead.nombre_empresa} sobre servicios en ${lead.ciudad}. ¿Con quién tengo el gusto?`);
 
                                             return (
                                                 <tr key={lead.id} className="hover:bg-slate-50 transition-colors">
@@ -446,7 +457,7 @@
                                                         <div className="font-semibold text-slate-900">{lead.nombre_empresa}</div>
                                                         <div className="flex items-center gap-2 mt-1">
                                                             <span className="inline-block px-2 py-0.5 text-[11px] rounded bg-slate-100 text-slate-700 border border-slate-200">
-                                                                {lead.tipo_entidad || 'No especificado'}
+                                                                {lead.tipo_entidad || 'Empresa'}
                                                             </span>
                                                             {lead.persona_contacto && (
                                                                 <span className="text-xs text-slate-500">
@@ -483,9 +494,12 @@
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4 max-w-xs">
-                                                        <div className="text-xs text-slate-700 truncate" title={lead.direccion}>
+                                                        <div className="text-xs text-slate-700 font-medium">
                                                             <i className="bi bi-geo-alt text-slate-400 mr-1"></i>
-                                                            {lead.direccion || lead.ciudad || "Chinandega"}
+                                                            {lead.ciudad} {lead.pais ? `(${lead.pais})` : ''}
+                                                        </div>
+                                                        <div className="text-[11px] text-slate-500 truncate mt-0.5" title={lead.direccion}>
+                                                            {lead.direccion}
                                                         </div>
                                                         {lead.detalles_oferta && (
                                                             <div className="text-[11px] text-slate-500 line-clamp-2 mt-1" title={lead.detalles_oferta}>
@@ -566,9 +580,9 @@
                                 </div>
                                 <form onSubmit={guardarEdicionLead} className="space-y-4 mt-4">
                                     <div>
-                                        <label className="block text-xs font-semibold text-slate-500 uppercase">Empresa / Titular</label>
+                                        <label className="block text-xs font-semibold text-slate-500 uppercase">Empresa / Negocio</label>
                                         <p className="text-sm font-bold text-slate-800">{leadSeleccionado.nombre_empresa}</p>
-                                        <span className="text-xs text-indigo-600">{leadSeleccionado.telefono} ({leadSeleccionado.ciudad})</span>
+                                        <span className="text-xs text-indigo-600 font-medium">{leadSeleccionado.telefono} ({leadSeleccionado.ciudad}, {leadSeleccionado.pais})</span>
                                     </div>
                                     {leadSeleccionado.direccion && (
                                         <div>
@@ -578,7 +592,7 @@
                                     )}
                                     {leadSeleccionado.detalles_oferta && (
                                         <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
-                                            <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Detalles de Oferta Detectados</label>
+                                            <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Detalles / Servicios Detectados</label>
                                             <p className="text-xs text-slate-600">{leadSeleccionado.detalles_oferta}</p>
                                         </div>
                                     )}
@@ -613,7 +627,7 @@
                                             rows="3"
                                             value={leadSeleccionado.notas || ''}
                                             onChange={(e) => setLeadSeleccionado({ ...leadSeleccionado, notas: e.target.value })}
-                                            placeholder="Detalla lo hablado con el cliente, montos solicitados, objeciones..."
+                                            placeholder="Detalla lo hablado con el cliente, servicios de interés, presupuesto..."
                                             className="w-full text-sm border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                                         ></textarea>
                                     </div>

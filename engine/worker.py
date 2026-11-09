@@ -13,7 +13,7 @@ from bs4 import BeautifulSoup
 
 from config import config
 from models import LeadExtracted
-from normalizer import normalizar_telefono_nicaragua, limpiar_texto
+from normalizer import normalizar_telefono_internacional, limpiar_texto
 from discovery import descubrir_urls_candidatas
 
 def obtener_db_conexion():
@@ -62,43 +62,37 @@ def actualizar_estado_job(conn, job_id: int, status: str, leads_guardados: int =
     except Exception as e:
         print(f"[Error actualizando job] {e}")
 
-def extraccion_fallback_html(url: str, sector: str, ciudad: str) -> Optional[LeadExtracted]:
+def extraccion_fallback_html(url: str, sector: str, ciudad: str, pais: str) -> Optional[LeadExtracted]:
     """
-    Extractor rápido de contingencia: descarga el HTML y busca patrones de teléfono
-    de Nicaragua (+505 o números de 8 dígitos que empiecen por 2, 5, 7 u 8).
-    Permite probar el sistema incluso si no se ha configurado una clave de LLM aún.
+    Extractor de contingencia: descarga el HTML y busca patrones de teléfono
+    válidos según el país especificado.
     """
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
     }
     try:
-        resp = requests.get(url, headers=headers, timeout=10)
+        resp = requests.get(url, headers=headers, timeout=12)
         if resp.status_code != 200:
             return None
 
         soup = BeautifulSoup(resp.text, 'html.parser')
-        
-        # Obtener título o nombre probable
         titulo = soup.title.string.strip() if soup.title and soup.title.string else ""
-        nombre = titulo.split("|")[0].split("-")[0].strip() or f"Entidad en {ciudad}"
+        nombre = titulo.split("|")[0].split("-")[0].strip() or f"Empresa en {ciudad}"
 
-        # Buscar enlaces tel:
         tel_found = None
         for a in soup.find_all('a', href=True):
             if a['href'].startswith('tel:'):
                 candidato = a['href'].replace('tel:', '').strip()
-                t_e164, _ = normalizar_telefono_nicaragua(candidato)
+                t_e164, _ = normalizar_telefono_internacional(candidato, pais)
                 if t_e164:
                     tel_found = t_e164
                     break
 
-        # Si no hubo enlace tel:, buscar con expresión regular en el texto
         if not tel_found:
             texto = soup.get_text()
-            # Patrón para teléfonos de Nicaragua (8 dígitos o con +505)
-            matches = re.findall(r'(?:\+?505[\s-]?)?([2578]\d{3}[\s-]?\d{4})', texto)
+            matches = re.findall(r'(?:\+?1[\s-]?)?\(?\d{3}\)?[\s-]?\d{3}[\s-]?\d{4}|\+?\d{8,14}', texto)
             for m in matches:
-                t_e164, _ = normalizar_telefono_nicaragua(m)
+                t_e164, _ = normalizar_telefono_internacional(m, pais)
                 if t_e164:
                     tel_found = t_e164
                     break
@@ -106,19 +100,19 @@ def extraccion_fallback_html(url: str, sector: str, ciudad: str) -> Optional[Lea
         if tel_found:
             return LeadExtracted(
                 nombre_empresa=nombre[:100],
-                tipo_entidad="Microfinanciera / Empresa" if "financiera" in nombre.lower() or "credito" in nombre.lower() else "No especificado",
+                tipo_entidad="Empresa / Negocio",
                 telefono=tel_found,
-                direccion=f"{ciudad}, Nicaragua",
+                direccion=f"{ciudad}, {pais}",
                 detalles_oferta=f"Identificado automáticamente desde {url}"
             )
     except Exception as e:
         print(f"[Fallback error en {url}] {e}")
     return None
 
-def procesar_scraping(job_id: int, sector: str, ciudad: str, limite: int, api_key: str):
+def procesar_scraping(job_id: int, sector: str, ciudad: str, pais: str, limite: int, api_key: str):
     conn = obtener_db_conexion()
     actualizar_estado_job(conn, job_id, "running")
-    registrar_log(conn, job_id, "info", f"Iniciando prospección para sector '{sector}' en '{ciudad}', límite: {limite}")
+    registrar_log(conn, job_id, "info", f"Iniciando prospección para '{sector}' en '{ciudad}' ({pais}), límite: {limite}")
 
     llm_key = api_key or config.API_KEY
     tiene_llm = bool(llm_key or config.LLM_PROVIDER == "ollama")
@@ -141,14 +135,14 @@ def procesar_scraping(job_id: int, sector: str, ciudad: str, limite: int, api_ke
             "verbose": False
         }
     else:
-        registrar_log(conn, job_id, "warning", "No se detectó API Key de LLM. Usando extractor HTML directo (agrega tu clave en engine/.env para IA semántica completa).")
+        registrar_log(conn, job_id, "warning", "No se detectó API Key de LLM. Usando extractor HTML directo.")
 
     # 1. Descubrimiento de URLs candidatas
-    registrar_log(conn, job_id, "info", "Buscando entidades y anuncios públicos en internet...")
-    urls_candidatas = descubrir_urls_candidatas(sector, ciudad, "Nicaragua", max_urls=limite * 3)
+    registrar_log(conn, job_id, "info", f"Buscando empresas de '{sector}' en {ciudad}, {pais}...")
+    urls_candidatas = descubrir_urls_candidatas(sector, ciudad, pais, max_urls=limite * 3)
 
     if not urls_candidatas:
-        msg = f"No se encontraron enlaces para '{sector}' en '{ciudad}'."
+        msg = f"No se encontraron enlaces para '{sector}' en '{ciudad}, {pais}'."
         registrar_log(conn, job_id, "warning", msg)
         actualizar_estado_job(conn, job_id, "completed", 0, msg)
         conn.close()
@@ -156,6 +150,9 @@ def procesar_scraping(job_id: int, sector: str, ciudad: str, limite: int, api_ke
 
     registrar_log(conn, job_id, "info", f"Se encontraron {len(urls_candidatas)} URLs candidatas para auditar.")
     leads_guardados = 0
+
+    pais_lower = (pais or "").lower().strip()
+    es_ingles = any(u in pais_lower for u in ['estados unidos', 'usa', 'united states', 'eeuu', 'us', 'canada', 'canadá', 'uk'])
 
     # 2. Procesar cada URL
     for idx, url in enumerate(urls_candidatas, 1):
@@ -171,12 +168,22 @@ def procesar_scraping(job_id: int, sector: str, ciudad: str, limite: int, api_ke
         if tiene_llm:
             try:
                 from scrapegraphai.graphs import SmartScraperGraph
-                prompt = (
-                    f"Analiza la información de esta página sobre '{sector}' en '{ciudad}', Nicaragua. "
-                    "Extrae los datos de contacto: nombre comercial o de la persona que ofrece préstamos/servicios, "
-                    "tipo de entidad, teléfono o WhatsApp de 8 dígitos de Nicaragua, correo, persona de contacto, "
-                    "dirección física y detalles breves de la oferta o condiciones."
-                )
+
+                # Ajuste de idioma del prompt según el país de la empresa
+                if es_ingles:
+                    prompt = (
+                        f"Extract contact and business information for this {sector} company in {ciudad}, {pais}: "
+                        "company name, phone number (with area code), email address, contact person name, "
+                        "full street address, and a brief summary of services offered."
+                    )
+                else:
+                    prompt = (
+                        f"Extrae la información de contacto de esta empresa de '{sector}' en '{ciudad}', {pais}: "
+                        "nombre comercial de la empresa, teléfono de contacto con código de área, "
+                        "correo electrónico, persona de contacto, dirección física completa "
+                        "y resumen de los servicios ofrecidos."
+                    )
+
                 scraper = SmartScraperGraph(
                     prompt=prompt,
                     source=url,
@@ -184,20 +191,20 @@ def procesar_scraping(job_id: int, sector: str, ciudad: str, limite: int, api_ke
                     config=graph_config
                 )
                 res = scraper.run()
-                if res:
+                if res and res.get('nombre_empresa') and res.get('nombre_empresa') != 'NA':
                     lead = LeadExtracted(**res)
             except Exception as e:
                 err_msg = str(e)
                 registrar_log(conn, job_id, "warning", f"IA falló en {url} ({err_msg}). Intentando con extractor de respaldo...")
-                lead = extraccion_fallback_html(url, sector, ciudad)
+                lead = extraccion_fallback_html(url, sector, ciudad, pais)
         else:
-            lead = extraccion_fallback_html(url, sector, ciudad)
+            lead = extraccion_fallback_html(url, sector, ciudad, pais)
 
         if not lead or not lead.telefono:
-            registrar_log(conn, job_id, "warning", f"Sin teléfono válido en {url}")
+            registrar_log(conn, job_id, "warning", f"Sin teléfono válido detectado en {url}")
             continue
 
-        tel_e164, tel_crudo = normalizar_telefono_nicaragua(lead.telefono)
+        tel_e164, tel_crudo = normalizar_telefono_internacional(lead.telefono, pais)
         if not tel_e164:
             registrar_log(conn, job_id, "warning", f"Teléfono descartado por formato ({lead.telefono})")
             continue
@@ -214,14 +221,14 @@ def procesar_scraping(job_id: int, sector: str, ciudad: str, limite: int, api_ke
                 cur.execute(
                     """
                     INSERT INTO leads 
-                    (job_id, sector, ciudad, departamento, nombre_empresa, tipo_entidad, 
+                    (job_id, sector, ciudad, departamento, pais, nombre_empresa, tipo_entidad, 
                      telefono, telefono_raw, email, persona_contacto, direccion, sitio_web, detalles_oferta)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
-                        job_id, sector, ciudad, "Chinandega", lead.nombre_empresa, lead.tipo_entidad,
+                        job_id, sector, ciudad, ciudad, pais, lead.nombre_empresa, lead.tipo_entidad or "Empresa",
                         tel_e164, tel_crudo, lead.email, lead.persona_contacto, 
-                        lead.direccion or ciudad, url, lead.detalles_oferta
+                        lead.direccion or f"{ciudad}, {pais}", url, lead.detalles_oferta
                     )
                 )
             conn.commit()
@@ -243,8 +250,9 @@ def procesar_scraping(job_id: int, sector: str, ciudad: str, limite: int, api_ke
 def main():
     parser = argparse.ArgumentParser(description="Worker de Prospección Scraph")
     parser.add_argument("--job_id", type=int, help="ID del trabajo en la base de datos")
-    parser.add_argument("--sector", type=str, default="Microcréditos y préstamos")
-    parser.add_argument("--ciudad", type=str, default="Chinandega")
+    parser.add_argument("--sector", type=str, default="Construcción")
+    parser.add_argument("--ciudad", type=str, default="Miami")
+    parser.add_argument("--pais", type=str, default="Estados Unidos")
     parser.add_argument("--limite", type=int, default=5)
     parser.add_argument("--api_key", type=str, default="")
     args = parser.parse_args()
@@ -261,25 +269,27 @@ def main():
             sys.exit(1)
         sector = job_data["sector"]
         ciudad = job_data["ciudad"]
+        pais   = job_data.get("pais") or "Estados Unidos"
         limite = job_data["limite_solicitado"]
     else:
         sector = args.sector
         ciudad = args.ciudad
+        pais   = args.pais
         limite = args.limite
         job_uuid = str(uuid.uuid4())
         with conn.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO scraping_jobs (uuid, sector, ciudad, limite_solicitado, status)
-                VALUES (%s, %s, %s, %s, 'pending')
+                INSERT INTO scraping_jobs (uuid, sector, ciudad, pais, limite_solicitado, status)
+                VALUES (%s, %s, %s, %s, %s, 'pending')
                 """,
-                (job_uuid, sector, ciudad, limite)
+                (job_uuid, sector, ciudad, pais, limite)
             )
             job_id = cur.lastrowid
         conn.commit()
 
     conn.close()
-    procesar_scraping(job_id, sector, ciudad, limite, args.api_key)
+    procesar_scraping(job_id, sector, ciudad, pais, limite, args.api_key)
 
 if __name__ == "__main__":
     main()
