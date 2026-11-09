@@ -51,6 +51,41 @@
             const [activeJob, setActiveJob] = useState(null);
             const [jobLogs, setJobLogs] = useState([]);
             const [isScraping, setIsScraping] = useState(false);
+            const [mostrarLogs, setMostrarLogs] = useState(false);
+
+            const calcularProgreso = () => {
+                if (!activeJob) return 0;
+                if (activeJob.status === "completed") return 100;
+                if (activeJob.status === "failed") return 100;
+
+                const solicitados = parseInt(activeJob.limite_solicitado) || 1;
+                const guardados = parseInt(activeJob.leads_guardados) || 0;
+
+                if (activeJob.status === "pending") return 12;
+
+                if (guardados === 0) {
+                    return jobLogs.length > 2 ? 35 : 20;
+                }
+
+                const base = 35;
+                const progresoLeads = (guardados / solicitados) * 60;
+                return Math.min(95, Math.round(base + progresoLeads));
+            };
+
+            const obtenerMensajeEstado = () => {
+                if (!activeJob) return "";
+                if (activeJob.status === "completed") {
+                    return `¡Prospección finalizada con éxito! Se guardaron ${activeJob.leads_guardados || 0} prospectos en la base de datos.`;
+                }
+                if (activeJob.status === "failed") {
+                    return `El trabajo se detuvo con errores: ${activeJob.error_mensaje || 'Verifica la consola.'}`;
+                }
+                if (jobLogs.length > 0) {
+                    const ultimo = jobLogs[jobLogs.length - 1];
+                    return ultimo.mensaje;
+                }
+                return "Iniciando motor de IA y buscando empresas...";
+            };
 
             useEffect(() => {
                 cargarLeads();
@@ -343,34 +378,90 @@
                             </div>
                         </form>
 
-                        {/* Banner de progreso y logs en tiempo real */}
+                        {/* Barra de Progreso Dinámica y Estado */}
                         {activeJob && (
-                            <div className="mt-5 p-4 rounded-xl bg-slate-50 border border-slate-200">
-                                <div className="flex items-center justify-between mb-2">
-                                    <div className="flex items-center gap-2">
-                                        <span className={`w-2.5 h-2.5 rounded-full ${activeJob.status === "running" ? "bg-amber-500 animate-ping" : activeJob.status === "completed" ? "bg-emerald-500" : "bg-slate-400"}`}></span>
-                                        <span className="text-sm font-semibold text-slate-800">
-                                            Estado del Trabajo #{activeJob.id}: {activeJob.status.toUpperCase()}
+                            <div className="mt-6 p-5 rounded-2xl bg-slate-50 border border-slate-200 shadow-sm transition-all">
+                                {/* Encabezado del Progreso */}
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
+                                    <div className="flex items-center gap-2.5">
+                                        <span className={`w-3 h-3 rounded-full flex items-center justify-center ${
+                                            activeJob.status === "running" ? "bg-amber-500 animate-ping" :
+                                            activeJob.status === "completed" ? "bg-emerald-500" :
+                                            activeJob.status === "failed" ? "bg-rose-500" : "bg-slate-400"
+                                        }`}></span>
+                                        <span className="text-sm font-bold text-slate-800">
+                                            {activeJob.status === "running" ? "Extrayendo prospectos con Inteligencia Artificial..." :
+                                             activeJob.status === "completed" ? "¡Proceso Completado con Éxito!" :
+                                             activeJob.status === "failed" ? "Proceso Detenido con Errores" : "Iniciando Proceso..."}
+                                        </span>
+                                        <span className="text-xs text-slate-400 font-mono">
+                                            (Trabajo #{activeJob.id})
                                         </span>
                                     </div>
-                                    <span className="text-xs bg-indigo-100 text-indigo-700 font-medium px-2 py-0.5 rounded-md">
-                                        Leads Guardados: {activeJob.leads_guardados || 0} / {activeJob.limite_solicitado}
-                                    </span>
+
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200">
+                                            Guardados: <strong className="text-indigo-950 font-bold">{activeJob.leads_guardados || 0}</strong> / {activeJob.limite_solicitado}
+                                        </span>
+                                        <span className="text-sm font-extrabold text-slate-800 font-mono bg-white px-2 py-0.5 rounded-md border border-slate-200 shadow-xs">
+                                            {calcularProgreso()}%
+                                        </span>
+                                    </div>
                                 </div>
-                                <div className="bg-slate-900 text-slate-200 p-3 rounded-lg font-mono text-xs max-h-36 overflow-y-auto space-y-1">
-                                    {jobLogs.length === 0 ? (
-                                        <p className="text-slate-500">Esperando conexión con el motor Python...</p>
-                                    ) : (
-                                        jobLogs.map((log, i) => (
-                                            <div key={i} className="flex gap-2">
-                                                <span className={`text-[10px] uppercase font-bold ${log.nivel === 'success' ? 'text-emerald-400' : log.nivel === 'warning' ? 'text-amber-400' : log.nivel === 'error' ? 'text-rose-400' : 'text-slate-400'}`}>
-                                                    [{log.nivel}]
-                                                </span>
-                                                <span>{log.mensaje}</span>
-                                            </div>
-                                        ))
-                                    )}
+
+                                {/* Barra de Progreso Visual */}
+                                <div className="w-full bg-slate-200/80 rounded-full h-4 overflow-hidden p-0.5 border border-slate-200">
+                                    <div
+                                        className={`h-full rounded-full transition-all duration-700 ease-out ${
+                                            activeJob.status === "completed" 
+                                                ? "bg-emerald-500 shadow-sm" 
+                                                : activeJob.status === "failed" 
+                                                ? "bg-rose-500" 
+                                                : "bg-gradient-to-r from-indigo-500 via-indigo-600 to-emerald-500 animate-pulse"
+                                        }`}
+                                        style={{ width: `${calcularProgreso()}%` }}
+                                    ></div>
                                 </div>
+
+                                {/* Pie del Progreso: Mensaje descriptivo actual y botón de consola */}
+                                <div className="flex items-center justify-between mt-3 text-xs gap-3">
+                                    <p className="text-slate-600 truncate flex-1 flex items-center gap-2 font-medium">
+                                        <i className={`bi ${
+                                            activeJob.status === 'completed' 
+                                                ? 'bi-check-circle-fill text-emerald-600 text-sm' 
+                                                : activeJob.status === 'failed'
+                                                ? 'bi-x-circle-fill text-rose-600 text-sm'
+                                                : 'bi-arrow-repeat text-indigo-600 animate-spin text-sm'
+                                        }`}></i>
+                                        <span className="truncate">{obtenerMensajeEstado()}</span>
+                                    </p>
+                                    <button
+                                        type="button"
+                                        onClick={() => setMostrarLogs(!mostrarLogs)}
+                                        className="text-[11px] font-semibold text-slate-500 hover:text-indigo-600 transition-colors whitespace-nowrap flex items-center gap-1.5 px-2 py-1 rounded hover:bg-slate-200/50"
+                                    >
+                                        <i className={`bi ${mostrarLogs ? 'bi-chevron-up' : 'bi-terminal'}`}></i>
+                                        {mostrarLogs ? "Ocultar consola" : "Ver consola"}
+                                    </button>
+                                </div>
+
+                                {/* Consola de Logs desplegable (Opcional bajo demanda) */}
+                                {mostrarLogs && (
+                                    <div className="mt-3 bg-slate-900 text-slate-200 p-3 rounded-xl font-mono text-xs max-h-40 overflow-y-auto space-y-1">
+                                        {jobLogs.length === 0 ? (
+                                            <p className="text-slate-500">Esperando conexión con el motor Python...</p>
+                                        ) : (
+                                            jobLogs.map((log, i) => (
+                                                <div key={i} className="flex gap-2">
+                                                    <span className={`text-[10px] uppercase font-bold ${log.nivel === 'success' ? 'text-emerald-400' : log.nivel === 'warning' ? 'text-amber-400' : log.nivel === 'error' ? 'text-rose-400' : 'text-slate-400'}`}>
+                                                        [{log.nivel}]
+                                                    </span>
+                                                    <span>{log.mensaje}</span>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
